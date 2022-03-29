@@ -1,0 +1,4 @@
+binance-connector-python
+pandas
+certifi
+click
