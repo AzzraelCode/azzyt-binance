@@ -3,7 +3,7 @@ import creds
 import click
 from binance.websocket.spot.websocket_client import SpotWebsocketClient
 
-from v1_websockets import get_spot_client
+from vx_websockets import get_spot_client
 
 def _kline(r):
     """

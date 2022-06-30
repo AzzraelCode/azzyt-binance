@@ -1,6 +1,6 @@
 import click
 import creds
-from v1_websockets import get_spot_client
+from vx_websockets import get_spot_client
 
 click.secho("Отправка Заявки", fg="red")
 
