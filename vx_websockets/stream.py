@@ -42,9 +42,9 @@ client = SpotWebsocketClient(stream_url="wss://testnet.binance.vision")
 client.start()
 
 try:
-
-    listen_key = get_spot_client().new_listen_key().get("listenKey")
-    client.user_data(listen_key=listen_key, id=1, callback=_user_data)
+    listen_key = None
+    # listen_key = get_spot_client().new_listen_key().get("listenKey")
+    # client.user_data(listen_key=listen_key, id=1, callback=_user_data)
 
     # client.kline(
     #     symbol=creds.symbol,
@@ -53,9 +53,10 @@ try:
     #     callback=_kline
     # )
 
+    client.book_ticker(id=3, symbol='BTCUSDT', callback=lambda x: print(x))
+
     for i in range(1, 60*60*24):
-        if i % 59*60 == 0:
-            get_spot_client().renew_listen_key(listen_key)
+        if listen_key and i % 59*60 == 0: get_spot_client().renew_listen_key(listen_key)
         if i % 60 == 0:
             click.secho(f"Сокет ок, {int(i/60)} мин.", fg="yellow")
         sleep(1)
