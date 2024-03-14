@@ -1,4 +1,5 @@
-binance-connector-python
+binance-connector
 pandas
 certifi
 click
+binance-futures-connector
