@@ -1,23 +1,21 @@
 import math
-import os
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal, ROUND_DOWN, ROUND_UP
 from typing import Optional
 
-from binance.spot import Spot
-from binance.um_futures import UMFutures
+def floor_by_tick_size(v, tick_size):
+    return float(Decimal(v).quantize(Decimal(str(tick_size)), rounding=ROUND_DOWN))
 
-
-def LoadSpotClient(load_keys=True) -> Spot:
-    return Spot() if not load_keys else Spot(api_key=os.getenv("API_KEY"), api_secret=os.getenv("SECRET_KEY"))
-
-def LoadUsdmFutClient(load_keys=True) -> UMFutures:
-    return UMFutures() if not load_keys else UMFutures(key=os.getenv("API_KEY"), secret=os.getenv("SECRET_KEY"))
+def ceil_by_tick_size(v, tick_size):
+    return float(Decimal(v).quantize(Decimal(str(tick_size)), rounding=ROUND_UP))
 
 def floor(v, decimal):
-    return math.floor(v * pow(10, decimal))/pow(10, decimal)
+    # return math.floor(v * pow(10, decimal))/pow(10, decimal)
+    if decimal == 0: return float(int(v))
+    return float(Decimal(v).quantize( Decimal(str(1 / (10**decimal))), rounding=ROUND_DOWN))
 
 def ceil(v, decimal):
-    return math.ceil(v * pow(10, decimal))/pow(10, decimal)
+    # return math.ceil(v * pow(10, decimal))/pow(10, decimal)
+    return float(Decimal(v).quantize( Decimal(str(1 / (10**decimal))), rounding=ROUND_UP))
 
 
 def list_dicts(filters_lst: list, filter_key: str, key: str, callback: Optional[callable] = None,
@@ -33,3 +31,14 @@ def list_dicts(filters_lst: list, filter_key: str, key: str, callback: Optional[
     if callback: r = callback(r)
     return r
 
+def calculate_limit_price_perc(price, side : str = "SELL", distance_perc : float = 2.0):
+    """
+    Расчет цен для постановки лимитного/алго ордера
+    в процентах от заданной цены
+    и в зависимости от направления
+    :param price: Цена инструмента
+    :param side: Sell/Buy
+    :param distance_perc: колво процентов, мб отрицательным
+    :return:
+    """
+    return price * (100 + ((-1, 1)[side.lower() == "sell"] * distance_perc)) / 100
