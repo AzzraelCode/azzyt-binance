@@ -19,14 +19,56 @@ from diskcache import Cache
 logger = logging.getLogger('azzyt-binance')
 cache = Cache("cache")
 
+class Position:
+
+    def __init__(self, pos : dict):
+        # logger.debug(pos)
+
+        self.qty = float(pos.get('positionAmt', '0.0'))
+        self.symbol = pos.get('symbol')
+        self.side = ('BUY', 'SELL')[self.qty < 0]
+        self.side_sign = (1.0, -1.0)[self.qty < 0]
+        self.rev_side = ('SELL', 'BUY')[self.qty < 0]
+        self.abs_qty = abs(self.qty)
+        self.curr_profit = float(pos.get('unrealizedProfit', '0.0'))
+        self.price = float(pos.get('entryPrice', '0.0'))
+        self.leverage = float(pos.get('leverage', '0.0'))
+
+    def __str__(self):
+        return str(self.__dict__)
+
+class Symbol:
+    def __init__(self, s: dict, tickers : list):
+        filters = s.get('filters')
+        self.s=s.get('symbol')
+        self.b=s.get('baseAsset')
+        self.pprice=s.get('pricePrecision')
+        self.pqty=s.get('quantityPrecision')
+        self.pbase=s.get('baseAssetPrecision')
+        self.pquote=s.get('quotePrecision')
+        self.tick_size=list_dicts(filters, 'PRICE_FILTER', 'tickSize', float)
+
+        self.price = list_dicts(tickers, self.s, 'price', float, 'symbol')
+
+        # считаю минимальный размер ордера
+        # кот зависит от сочетания MIN_NOTIONAL / LOT_SIZE и текущей цены,
+        # с округлением итогого значения в qty precision
+        min_not = list_dicts(filters, 'MIN_NOTIONAL', 'notional', float)
+        min_qty = list_dicts(filters, 'LOT_SIZE', 'minQty', float)
+        lot_by_qty = min_qty * self.price
+        # здесь НЕЛЬЗЯ округлять вниз - иначе из-за окр итоговое значение может стать меньше MIN_NOTIONAL|LOT_SIZE
+        self.min_quote = ceil((min_not, lot_by_qty)[min_not <= lot_by_qty], self.pquote)
+        self.min_qty = ceil(self.min_quote / self.price, self.pqty)
+
+    def __str__(self):
+        return str(self.__dict__)
+
 class V7UsdmFutures:
     def __init__(self):
         api_key = os.getenv("BIUM_API_KEY")
         secret_key = os.getenv("BIUM_SECRET_KEY")
         if not (api_key and secret_key): raise Exception("Ключи не найдены")
-
         logger.debug(f"API_KEY ******{api_key[-5:]}")
-
         self.cl = UMFutures(key=api_key, secret=secret_key,)
 
 
@@ -44,6 +86,7 @@ class V7UsdmFutures:
         logger.debug(assets)
         return assets
 
+    @cache.memoize(expire=30, ignore={0, })
     def ticker_v1(self, symbol=None):
         """
         Массив всех текущих цен всех торгуемых в секции USD-M инструментов
@@ -53,7 +96,7 @@ class V7UsdmFutures:
         """
         return self.cl.ticker_price(symbol)
 
-    def positions(self, symbol : Optional[str] = "ADAUSDT"):
+    def positions(self, symbol : Optional[str] = "ADAUSDT") -> Position | list[Position]:
         """
         Получаю текущие позиции
         :param symbol:
@@ -63,27 +106,19 @@ class V7UsdmFutures:
         for pos in self.cl.account().get('positions', []):
             sz = float(pos.get('positionAmt', '0.0'))
             if sz == 0.0: continue
+            r = Position(pos)
 
-            # logger.debug(pos)
-
-            r = dict(
-                symbol=pos.get('symbol'),
-                side=('BUY', 'SELL')[sz < 0],
-                side_sign=(1.0, -1.0)[sz<0],
-                rev_side=('SELL', 'BUY')[sz < 0],
-                sz=sz,
-                abs_sz=abs(sz),
-                curr_profit=float(pos.get('unrealizedProfit', '0.0')),
-                price=float(pos.get('entryPrice', '0.0')),
-                leverage=float(pos.get('leverage', '0.0')),
-            )
-            if symbol == r['symbol']: return r
+            if symbol == r.symbol: return r
             positions.append(r)
 
         return positions if not symbol else None
 
+    def orders(self, symbol : Optional[str] = "ADAUSDT"):
+        orders = self.cl.get_orders(symbol=symbol)
+        logger.debug(orders)
+
     @cache.memoize(expire=60, ignore={0,})
-    def instruments(self, quote_asset='USDT', symbol : Optional[str] = None):
+    def symbols(self, quote_asset='USDT', symbol : Optional[str] = None):
         """
         Список Символов и фильтров по ним
         в тч с расчетом мин размера ордера изходя их min_qty, mon_notional, current price
@@ -96,34 +131,10 @@ class V7UsdmFutures:
 
         symbols = []
         for s in self.cl.exchange_info().get('symbols', []):
-            if s.get('status') != 'TRADING' or s.get('contractType') != 'PERPETUAL' or s.get('quoteAsset') != quote_asset:
-                continue
+            if s.get('status') != 'TRADING' or s.get('contractType') != 'PERPETUAL' or s.get('quoteAsset') != quote_asset: continue
+            r = Symbol(s, tickers)
 
-            filters = s.get('filters')
-            r = dict(
-                s=s.get('symbol'),
-                b=s.get('baseAsset'),
-                pprice=s.get('pricePrecision'),
-                pqty=s.get('quantityPrecision'),
-                pbase=s.get('baseAssetPrecision'),
-                pquote=s.get('quotePrecision'),
-                tick_size=list_dicts(filters, 'PRICE_FILTER', 'tickSize', float),
-            )
-
-            r['price'] = list_dicts(tickers, r['s'], 'price', float, 'symbol')
-
-            # считаю минимальный размер ордера
-            # кот зависит от сочетания MIN_NOTIONAL / LOT_SIZE и текущей цены,
-            # с округлением итогого значения в qty precision
-            min_not = list_dicts(filters, 'MIN_NOTIONAL', 'notional', float)
-            min_qty = list_dicts(filters, 'LOT_SIZE', 'minQty', float)
-            lot_by_qty = min_qty * r['price']
-            # здесь НЕЛЬЗЯ округлять вниз - иначе из-за окр итоговое значение может стать меньше MIN_NOTIONAL|LOT_SIZE
-            r['min_quote'] = ceil((min_not, lot_by_qty)[min_not <= lot_by_qty], r['pquote'])
-            r['min_qty'] = ceil(r['min_quote'] / r['price'], r['pqty'])
-
-            if symbol == r['s']: return r
-
+            if symbol == r.s: return r
             symbols.append(r)
 
         return symbols if not symbol else None
@@ -148,10 +159,8 @@ class V7UsdmFutures:
         :param dist: Если цена размещения не задана, то можно разместить в %% от текущей цены исструмента
         :return:
         """
-        f = self.instruments(symbol=symbol)
-        logger.debug(f)
-
-        if dist: price = floor(calculate_limit_price_perc(f['price'], side, dist), f['pprice'])
+        s = self.symbols(symbol=symbol)
+        if dist: price = floor(calculate_limit_price_perc(s.price, side, dist), s.pprice)
         if quote: qty = quote / price
 
         if not (price and qty): raise Exception("Не заданы необходимые параметры Ордера")
@@ -159,8 +168,8 @@ class V7UsdmFutures:
         args = dict(
             symbol=symbol,
             type="LIMIT",
-            quantity=floor(qty, f['pqty']),
-            price=floor_by_tick_size(price, f['tick_size']),
+            quantity=floor(qty, s.pqty),
+            price=floor_by_tick_size(price, s.tick_size),
             side=side,
             timeinforce="GTC",
         )
@@ -188,15 +197,13 @@ class V7UsdmFutures:
         :param quote: Размер Ордера в Котируемой Валюте (USDT)
         :return:
         """
-        f = self.instruments(symbol=symbol)
-        logger.debug(f)
-
-        if quote: qty = quote / f['price']
+        s = self.symbols(symbol=symbol)
+        if quote: qty = quote / s.price
 
         args = dict(
             symbol=symbol,
             type="MARKET",
-            quantity=floor(qty, f['pqty']),
+            quantity=floor(qty, s.pqty),
             side=side,
         )
         logger.debug(args)
@@ -227,31 +234,46 @@ class V7UsdmFutures:
         :param is_loss: True == STOP_MARKET, False == TAKE_PROFIT_MARKET
         :return:
         """
-        # Получаю текущую позицию по инструменту
-        pos = self.positions(symbol)
-        if not pos: raise Exception(f"Нет позиции по {pos}")
-        logger.debug(pos)
-
-        # Получаю фильтры инструмента (точности, лимиты, текущую цену)
-        f = self.instruments(symbol=symbol)
-        logger.debug(f)
+        pos, s = self.get_position_w_filters(symbol)
 
         # расчет stopPrice по дистанции
         if dist:
-            from_price = (f['price'], pos['price'])[dist_from_entry] # от какой цены считать - цены позы или тек цены инструмента
+            from_price = (s.price, pos.price)[dist_from_entry] # от какой цены считать - цены позы или тек цены инструмента
             logger.debug(from_price)
             price = calculate_limit_price_perc(
                 from_price,
-                pos['rev_side'],
-                (-1, 1)[is_loss]*pos['side_sign']*dist # STOP_LOSS/TAKE_PROFIT, Pos Side
+                pos.side,
+                (-1, 1)[is_loss]*pos.side_sign*dist # STOP_LOSS/TAKE_PROFIT, Pos Side
             )
 
         args = dict(
             symbol=symbol,
             type=("TAKE_PROFIT_MARKET", "STOP_MARKET")[is_loss],
-            side=pos.get('rev_side'),
+            side=pos.rev_side,
             closePosition=True,
-            stopPrice=floor_by_tick_size(price, f['tick_size']),
+            stopPrice=floor_by_tick_size(price, s.tick_size),
+        )
+        logger.debug(args)
+
+        r = self.cl.new_order(**args)
+        logger.debug(r)
+        return r
+
+    def place_trailing_stop(
+            self,
+            symbol,
+            dist : float,
+            dist_activate : Optional[float] = None,
+    ):
+        pos, s = self.get_position_w_filters(symbol)
+        # activate_price = calculate_limit_price_perc(pos.price, pos.rev_side, -1*pos.side_sign * dist_activate) if dist_activate else None
+
+        args = dict(
+            symbol=symbol,
+            callbackRate=dist,
+            type="TRAILING_STOP_MARKET",
+            side=pos.rev_side,
+            quantity=pos.abs_qty,
         )
         logger.debug(args)
 
@@ -266,13 +288,13 @@ class V7UsdmFutures:
         :return:
         """
         pos = self.positions(symbol)
-        if not pos: raise Exception(f"Нет позиции по {pos}")
+        if not pos: raise Exception(f"Нет позиции по {symbol}")
 
         args = dict(
             symbol=symbol,
             type="MARKET",
-            side=pos.get('rev_side'),
-            quantity=pos.get('abs_sz'),
+            side=pos.rev_side,
+            quantity=pos.abs_qty,
             reduceOnly=True,
         )
         logger.debug(args)
@@ -280,3 +302,15 @@ class V7UsdmFutures:
         r = self.cl.new_order(**args)
         logger.debug(r)
         return r
+
+    def get_position_w_filters(self, symbol = "ADAUSDT"):
+        # Получаю текущую позицию по инструменту
+        pos = self.positions(symbol)
+        if not pos: raise Exception(f"Нет позиции по {pos}")
+        logger.debug(pos)
+
+        # Получаю фильтры инструмента (точности, лимиты, текущую цену)
+        f = self.symbols(symbol=symbol)
+        logger.debug(f)
+
+        return pos, f
