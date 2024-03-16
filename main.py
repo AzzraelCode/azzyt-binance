@@ -7,8 +7,11 @@ if __name__ == '__main__':
     o = V7UsdmFutures()
     # o.assets()
     # o.instruments()
-    # o.place_limit_order(quote=7, side="BUY", dist=5.0)
-    # o.place_market_order(symbol="ADAUSDT", quote=7, side="BUY")
-    # o.place_stop_loss_market_order()
     # o.positions()
-    o.close_position()
+
+    # o.place_market_order(symbol="ADAUSDT", quote=7, side="SELL")
+    o.place_stop_market_order(dist=5.0, is_loss=True)
+    o.place_stop_market_order(dist=5.0, is_loss=False)
+    # o.close_position()
+
+    # o.place_limit_order(quote=7, side="BUY", dist=5.0)

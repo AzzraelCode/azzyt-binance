@@ -6,7 +6,7 @@ def setup_logger():
     чтобы при деплое легко переключить сохранение логов в файл
     :return:
     """
-    fmt = logging.Formatter(fmt="%(asctime)s %(filename)s:%(lineno)d | %(message)s", datefmt="%m/%d %H:%M:%S")
+    fmt = logging.Formatter(fmt="%(asctime)s | %(filename)s:%(lineno)+4s | %(funcName)s  | %(message)s", datefmt="%m/%d %H:%M:%S")
     cons = logging.StreamHandler()
     cons.setFormatter(fmt)
     logger = logging.getLogger('azzyt-binance')

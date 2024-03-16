@@ -1,12 +1,17 @@
 # Работа с API Binance
 
-Исходный код для видео на канале Azzrael Code / https://azzrael.ru.
+Исходники для роликов на YT Azzrael Code\
+https://www.youtube.com/c/AzzraelCode \
+Поддержи блоггера\
+https://azzrael.ru/spasibo \
+Рефералка для реги на Binance \
+https://accounts.binance.com/ru/register?ref=335216425
 
 ## Основные ссылки
-- Рефералка для реги на Binance https://accounts.binance.com/ru/register?ref=335216425
 - https://binance-docs.github.io/apidocs/spot/en/#general-info
 - https://github.com/binance/binance-connector-python
 - https://testnet.binance.vision/
+- SDK для фьючерсов https://github.com/binance/binance-futures-connector-python
 
 ## Для TestNet
 

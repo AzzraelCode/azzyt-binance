@@ -1,6 +1,7 @@
 """
 !!! Поддержи канал                        https://azzrael.ru/spasibo
 !!! AzzraelCode YouTube                   https://www.youtube.com/@AzzraelCode
+!!! Рефералка для Binance                 https://accounts.binance.com/ru/register?ref=335216425
 
 API Binance USD-M Futures
 https://binance-docs.github.io/apidocs/futures/en/
@@ -63,17 +64,19 @@ class V7UsdmFutures:
             sz = float(pos.get('positionAmt', '0.0'))
             if sz == 0.0: continue
 
+            # logger.debug(pos)
+
             r = dict(
                 symbol=pos.get('symbol'),
                 side=('BUY', 'SELL')[sz < 0],
+                side_sign=(1.0, -1.0)[sz<0],
                 rev_side=('SELL', 'BUY')[sz < 0],
                 sz=sz,
                 abs_sz=abs(sz),
                 curr_profit=float(pos.get('unrealizedProfit', '0.0')),
+                price=float(pos.get('entryPrice', '0.0')),
+                leverage=float(pos.get('leverage', '0.0')),
             )
-
-            logger.debug(r)
-
             if symbol == r['symbol']: return r
             positions.append(r)
 
@@ -88,7 +91,6 @@ class V7UsdmFutures:
         :param quote_asset:
         :return:
         """
-        logger.debug(f"instruments  {symbol}{quote_asset}")
         # текущие цены на ВСЕ торгуемые символы
         tickers = self.ticker_v1()
 
@@ -205,13 +207,57 @@ class V7UsdmFutures:
         logger.debug(x)
         return x
 
-    def place_stop_loss_market_order(
+    def place_stop_market_order(
             self,
             symbol="ADAUSDT",
             price: Optional[float] = None,
             dist: Optional[float] = None,
+            dist_from_entry : bool = True,
+            is_loss: bool = True,
     ):
-        ...
+        """
+        Установка РЫНОЧНЫХ стоп ордеров (STOP_MARKET / TAKE_PROFIT_MARKET)
+        на закрытие всей позы полностью по указанному Инструменту
+        ! Для One Way Mode
+
+        :param symbol:
+        :param price: stopPrice
+        :param dist: Проценты, дистанция от цены для расчетацены поставновки стопа (stopPrice)
+        :param dist_from_entry: True == Считать дистанцию стопа от входа в позу, False == текущей цены инструмента
+        :param is_loss: True == STOP_MARKET, False == TAKE_PROFIT_MARKET
+        :return:
+        """
+        # Получаю текущую позицию по инструменту
+        pos = self.positions(symbol)
+        if not pos: raise Exception(f"Нет позиции по {pos}")
+        logger.debug(pos)
+
+        # Получаю фильтры инструмента (точности, лимиты, текущую цену)
+        f = self.instruments(symbol=symbol)
+        logger.debug(f)
+
+        # расчет stopPrice по дистанции
+        if dist:
+            from_price = (f['price'], pos['price'])[dist_from_entry] # от какой цены считать - цены позы или тек цены инструмента
+            logger.debug(from_price)
+            price = calculate_limit_price_perc(
+                from_price,
+                pos['rev_side'],
+                (-1, 1)[is_loss]*pos['side_sign']*dist # STOP_LOSS/TAKE_PROFIT, Pos Side
+            )
+
+        args = dict(
+            symbol=symbol,
+            type=("TAKE_PROFIT_MARKET", "STOP_MARKET")[is_loss],
+            side=pos.get('rev_side'),
+            closePosition=True,
+            stopPrice=floor_by_tick_size(price, f['tick_size']),
+        )
+        logger.debug(args)
+
+        r = self.cl.new_order(**args)
+        logger.debug(r)
+        return r
 
     def close_position(self, symbol="ADAUSDT"):
         """
