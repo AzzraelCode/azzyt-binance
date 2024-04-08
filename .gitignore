@@ -2,5 +2,6 @@
 creds
 __pycache__
 hidden
+data
 /v1_tokens/s.json
 cache

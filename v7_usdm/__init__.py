@@ -13,6 +13,8 @@ import logging
 import os
 from typing import Optional
 from binance.um_futures import UMFutures
+from pandas import DataFrame
+
 from helpers import floor, ceil, list_dicts, calculate_limit_price_perc, floor_by_tick_size
 from diskcache import Cache
 
@@ -138,6 +140,31 @@ class V7UsdmFutures:
             symbols.append(r)
 
         return symbols if not symbol else None
+
+    @cache.memoize(expire=60, ignore={0, })
+    def change24h(self):
+        """
+        Получение суточных объемов и изм цены
+        Weight 40 !!!
+        :return:
+        """
+        return {s.get('symbol') : dict(
+            symbol=s.get('symbol'),
+            priceChangePercent=float(s.get('priceChangePercent')),
+            priceChange=float(s.get('priceChange')),
+            lastPrice=float(s.get('lastPrice')),
+            volume=float(s.get('volume')),
+            quoteVolume=float(s.get('quoteVolume')),
+        ) for s in self.cl.ticker_24hr_price_change()}
+
+    def pretty_symbols(self, quote_asset='USDT', symbol : Optional[str] = None):
+        changes = self.change24h()
+        symbols = self.symbols(quote_asset, symbol)
+
+        df = DataFrame([{**s.__dict__, **changes.get(s.s, {})} for s in symbols])
+        df.to_csv('../data/pretty_symbols.csv', index=False)
+        # print(df)
+
 
     def place_limit_order(
             self,

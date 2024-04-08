@@ -4,3 +4,4 @@ certifi
 click
 binance-futures-connector
 diskcache
+pandas
