@@ -149,7 +149,7 @@ class V7UsdmFutures:
         :return:
         """
         return {s.get('symbol') : dict(
-            symbol=s.get('symbol'),
+            s=s.get('symbol'),
             priceChangePercent=float(s.get('priceChangePercent')),
             priceChange=float(s.get('priceChange')),
             lastPrice=float(s.get('lastPrice')),
@@ -164,6 +164,7 @@ class V7UsdmFutures:
         df = DataFrame([{**s.__dict__, **changes.get(s.s, {})} for s in symbols])
         df.to_csv('../data/pretty_symbols.csv', index=False)
         # print(df)
+        return df
 
 
     def place_limit_order(

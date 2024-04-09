@@ -1,5 +1,12 @@
 from time import sleep
 
+import pandas as pd
+from pandas import DataFrame
+
+pd.set_option('display.max_rows', 500)
+pd.set_option('display.max_columns', 500)
+pd.set_option('display.width', 1000)
+
 from v7_usdm import V7UsdmFutures
 
 from helpers.Logger import setup_logger
@@ -10,7 +17,14 @@ if __name__ == '__main__':
     # o.assets()
     # p = o.positions()
     # o.orders()
-    o.pretty_symbols()
+
+    # Получаю суточные изменения цены и объема в один запрос
+    df : DataFrame = DataFrame(o.change24h().values(), columns=['s', 'priceChangePercent', 'quoteVolume'])
+    df['changePercAbs'] = df['priceChangePercent'].abs()
+    print(
+        df[(df['quoteVolume'] > 500000000) & (df['changePercAbs'] > 5.0)]
+            .sort_values(by=['changePercAbs'], ascending=False)
+    )
 
     # o.place_market_order("ADAUSDT", quote=7, side="SELL")
     # o.place_market_order("ADAUSDT", qty=10, side="BUY")
