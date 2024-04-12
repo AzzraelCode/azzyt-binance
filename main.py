@@ -18,13 +18,16 @@ if __name__ == '__main__':
     # p = o.positions()
     # o.orders()
 
+    df = o.pretty_symbols()[['s', 'min_qty_filter', 'min_notional', 'min_qty', 'price', 'min_quote']]
+    print(df)
+
     # Получаю суточные изменения цены и объема в один запрос
-    df : DataFrame = DataFrame(o.change24h().values(), columns=['s', 'priceChangePercent', 'quoteVolume'])
-    df['changePercAbs'] = df['priceChangePercent'].abs()
-    print(
-        df[(df['quoteVolume'] > 500000000) & (df['changePercAbs'] > 5.0)]
-            .sort_values(by=['changePercAbs'], ascending=False)
-    )
+    # df : DataFrame = DataFrame(o.change24h().values(), columns=['s', 'priceChangePercent', 'quoteVolume'])
+    # df['changePercAbs'] = df['priceChangePercent'].abs()
+    # print(
+    #     df[(df['quoteVolume'] > 500000000) & (df['changePercAbs'] > 5.0)]
+    #         .sort_values(by=['changePercAbs'], ascending=False)
+    # )
 
     # o.place_market_order("ADAUSDT", quote=7, side="SELL")
     # o.place_market_order("ADAUSDT", qty=10, side="BUY")

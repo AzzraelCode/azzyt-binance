@@ -55,11 +55,11 @@ class Symbol:
         # считаю минимальный размер ордера
         # кот зависит от сочетания MIN_NOTIONAL / LOT_SIZE и текущей цены,
         # с округлением итогого значения в qty precision
-        min_not = list_dicts(filters, 'MIN_NOTIONAL', 'notional', float)
-        min_qty = list_dicts(filters, 'LOT_SIZE', 'minQty', float)
-        lot_by_qty = min_qty * self.price
+        self.min_notional = list_dicts(filters, 'MIN_NOTIONAL', 'notional', float)
+        self.min_qty_filter = list_dicts(filters, 'LOT_SIZE', 'minQty', float)
+        lot_by_qty = self.min_qty_filter * self.price
         # здесь НЕЛЬЗЯ округлять вниз - иначе из-за окр итоговое значение может стать меньше MIN_NOTIONAL|LOT_SIZE
-        self.min_quote = ceil((min_not, lot_by_qty)[min_not <= lot_by_qty], self.pquote)
+        self.min_quote = ceil((self.min_notional, lot_by_qty)[self.min_notional <= lot_by_qty], self.pquote)
         self.min_qty = ceil(self.min_quote / self.price, self.pqty)
 
     def __str__(self):
